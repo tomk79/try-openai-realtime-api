@@ -1,0 +1,32 @@
+{
+	"authors": [
+		{
+			"name": "Tomoya Koyanagi",
+			"email": "tomk79@gmail.com"
+		}
+	],
+	"scripts": {
+		"start": [
+			"@php -S \"localhost:8080\" -t ./public/"
+		]
+	},
+    "config": {
+        "process-timeout": 0
+    },
+	"minimum-stability": "dev",
+	"require": {
+		"php": ">=7.3.0" ,
+		"pickles2/px2style": "~3.0",
+		"vlucas/phpdotenv": "~5.4.0"
+	},
+	"autoload": {
+		"psr-4": {
+            "project\\": [
+                "php/"
+            ]
+		},
+		"files": [
+		]
+	},
+	"require-dev": {}
+}

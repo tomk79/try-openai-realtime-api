@@ -1,3 +1,92 @@
-test
+<!DOCTYPE html>
+<html lang="ja">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Try! OpenAI Realtime API</title>
+		<style>
+			.container {
+				overflow: auto;
+				height: 400px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Try! OpenAI Realtime API</h1>
 
+		<div class="container" id="container">
+			<table id="event-preview"></table>
+		</div>
 
+		<script>
+			const $eventPreviewContainer = document.getElementById('container');
+			const $eventPreview = document.getElementById('event-preview');
+
+			async function init() {
+				console.log('=-=-=-=-=-= init');
+
+				// Get an ephemeral key from your server - see server code below
+				const tokenResponse = await fetch("/session.php");
+				console.log('tokenResponse:', tokenResponse);
+				const data = await tokenResponse.json();
+				console.log('tokenResponse.json():', data);
+				const EPHEMERAL_KEY = data.client_secret.value;
+				console.log('EPHEMERAL_KEY:', EPHEMERAL_KEY);
+
+				// Create a peer connection
+				const pc = new RTCPeerConnection();
+
+				// Set up to play remote audio from the model
+				const audioEl = document.createElement("audio");
+				audioEl.autoplay = true;
+				pc.ontrack = e => audioEl.srcObject = e.streams[0];
+
+				// Add local audio track for microphone input in the browser
+				const ms = await navigator.mediaDevices.getUserMedia({
+					audio: true
+				});
+				pc.addTrack(ms.getTracks()[0]);
+
+				// Set up data channel for sending and receiving events
+				const dc = pc.createDataChannel("oai-events");
+				dc.addEventListener("message", (e) => {
+					// Realtime server events appear here!
+					console.log('dc.onmessage:', e, JSON.parse(e.data));
+					// ここにいろんなイベントが届く。
+
+					const data = JSON.parse(e.data);
+					const tr = $eventPreview.appendChild(document.createElement('tr'));
+					tr.appendChild(document.createElement('td')).textContent = data.type;
+					tr.appendChild(document.createElement('td')).textContent = data.delta;
+					tr.appendChild(document.createElement('td')).textContent = data.transcript;
+
+					$eventPreviewContainer.scrollTop = $eventPreviewContainer.scrollHeight;
+				});
+
+				// Start the session using the Session Description Protocol (SDP)
+				const offer = await pc.createOffer();
+				await pc.setLocalDescription(offer);
+
+				const baseUrl = "https://api.openai.com/v1/realtime";
+				const model = "gpt-4o-mini-realtime-preview-2024-12-17";
+				const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+					method: "POST",
+					body: offer.sdp,
+					headers: {
+						Authorization: `Bearer ${EPHEMERAL_KEY}`,
+						"Content-Type": "application/sdp"
+					},
+				});
+
+				const answer = {
+					type: "answer",
+					sdp: await sdpResponse.text(),
+				};
+				await pc.setRemoteDescription(answer);
+			}
+
+			init();
+
+		</script>
+	</body>
+</html>
