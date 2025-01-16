@@ -49,10 +49,9 @@
 
 				// Set up data channel for sending and receiving events
 				const dc = pc.createDataChannel("oai-events");
-				dc.addEventListener("message", (e) => {
+				dc.addEventListener("message", async (e) => {
 					// Realtime server events appear here!
-					console.log('dc.onmessage:', e, JSON.parse(e.data));
-					// ここにいろんなイベントが届く。
+					console.log('dc.onmessage:', e, JSON.parse(e.data)); // NOTE: ここにいろんなイベントが届く。
 
 					const data = JSON.parse(e.data);
 					const tr = $eventPreview.appendChild(document.createElement('tr'));
@@ -61,6 +60,25 @@
 					tr.appendChild(document.createElement('td')).textContent = data.transcript;
 
 					$eventPreviewContainer.scrollTop = $eventPreviewContainer.scrollHeight;
+
+					// RAG関数を呼び出す
+					if(data.type == 'response.function_call_arguments.done'){
+						if(data.name == "generate_horoscope"){
+							const result = await generate_horoscope(JSON.parse(data.arguments));
+
+							dc.send(JSON.stringify({
+								"type": "conversation.item.create",
+								"item": {
+									"type": "function_call_output",
+									"call_id": data.call_id,
+									"output": result,
+								}
+							}));
+							dc.send(JSON.stringify(					{
+								"type": "response.create"
+							}));
+						}
+					}
 				});
 
 				// Start the session using the Session Description Protocol (SDP)
@@ -83,9 +101,70 @@
 					sdp: await sdpResponse.text(),
 				};
 				await pc.setRemoteDescription(answer);
+
+
+				dc.onopen = () => {
+
+					// RAG関数をAIに教える
+					dc.send(JSON.stringify({
+						"type": "session.update",
+						"session": {
+							"tools": [
+								{
+									"type": "function",
+									"name": "generate_horoscope",
+									"description": "Give today's horoscope for an astrological sign.",
+									"parameters": {
+										"type": "object",
+										"properties": {
+											"sign": {
+												"type": "string",
+												"description": "The sign for the horoscope.",
+												"enum": [
+													"Aries",
+													"Taurus",
+													"Gemini",
+													"Cancer",
+													"Leo",
+													"Virgo",
+													"Libra",
+													"Scorpio",
+													"Sagittarius",
+													"Capricorn",
+													"Aquarius",
+													"Pisces",
+												],
+											},
+										},
+										"required": ["sign"],
+									},
+								},
+							],
+							"tool_choice": "auto",
+						},
+					}));
+
+				};
 			}
 
 			init();
+
+			/**
+			 * 星占い関数
+			 */
+			async function generate_horoscope(param){
+				return new Promise((resolve, reject) => {
+					console.log('generate_horoscope:', param);
+
+					const result = {
+						"horoscope": "You will soon meet a new friend.", // TODO: 本当は星座ごとに違う結果を返す
+					};
+
+					let rtn = JSON.stringify(result);
+					resolve(rtn);
+				});
+			}
+
 
 		</script>
 	</body>
